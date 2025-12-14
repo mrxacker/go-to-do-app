@@ -2,20 +2,26 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/mrxacker/go-to-do-app/internal/config"
 	"google.golang.org/grpc"
 )
 
+const shutdownTimeout = 5 * time.Second
+
 type App struct {
 	cfg *config.Config
 
 	httpServer *http.Server
 	grpcServer *grpc.Server
+
+	wg sync.WaitGroup
 }
 
 func NewApp() (*App, error) {
@@ -40,93 +46,120 @@ func NewApp() (*App, error) {
 func (a *App) Start(ctx context.Context) error {
 	fmt.Println("Starting application...")
 
-	a.httpServer.Addr = ":8080"
-
-	errChan := make(chan error, 2)
-
-	go func() {
-		err := runGRPCServer(ctx, a.grpcServer, a.cfg.GRPCAddr)
-		errChan <- err
-	}()
-
-	go func() {
-		err := runHTTPServer(ctx, a.httpServer)
-		errChan <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		return a.Stop(ctx)
-	case err := <-errChan:
-		if err != nil {
-			return fmt.Errorf("server error: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (a *App) Stop(ctx context.Context) error {
-	fmt.Println("Stopping application...")
-	err := shutdownHTTPServer(ctx, a.httpServer)
-	if err != nil {
-		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
-	}
-
-	a.grpcServer.GracefulStop()
-	return nil
-}
-
-func runHTTPServer(ctx context.Context, server *http.Server) error {
-	fmt.Println("Starting HTTP server on", server.Addr)
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		fmt.Println("HTTP server is running...")
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errChan <- err
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		fmt.Println("Stopping http server")
-		return shutdownHTTPServer(ctx, server)
-	case err := <-errChan:
-		return err
-	}
-}
-
-func shutdownHTTPServer(ctx context.Context, server *http.Server) error {
-	shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	return server.Shutdown(shutdownCtx)
+
+	errCh := make(chan error, 2)
+
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		errCh <- a.runHTTP(ctx)
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		errCh <- a.runGRPC(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return a.shutdown()
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			cancel()
+			_ = a.shutdown()
+			return err
+		}
+	}
+
+	return nil
 }
 
-func runGRPCServer(ctx context.Context, grpcSrv *grpc.Server, grpcAddr string) error {
-	lis, err := net.Listen("tcp", grpcAddr)
+func (a *App) shutdown() error {
+	fmt.Println("Stopping application...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	_ = a.shutdownHTTP()
+	a.shutdownGRPC()
+
+	done := make(chan struct{})
+	go func() {
+		a.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-shutdownCtx.Done():
+		return shutdownCtx.Err()
+	}
+
+	return nil
+}
+
+func (a *App) runHTTP(ctx context.Context) error {
+	if a.httpServer.Addr == "" {
+		return errors.New("http address is empty")
+	}
+
+	fmt.Println("Starting HTTP server on", a.httpServer.Addr)
+
+	go func() {
+		<-ctx.Done()
+		_ = a.shutdownHTTP()
+	}()
+
+	if err := a.httpServer.ListenAndServe(); err != nil {
+		if errors.Is(err, http.ErrServerClosed) {
+			return context.Canceled
+		}
+		return fmt.Errorf("http server failed: %w", err)
+	}
+
+	return nil
+}
+
+func (a *App) shutdownHTTP() error {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	return a.httpServer.Shutdown(ctx)
+}
+
+func (a *App) runGRPC(ctx context.Context) error {
+	lis, err := net.Listen("tcp", a.cfg.GRPCAddr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", grpcAddr, err)
+		return fmt.Errorf("failed to listen on %s: %w", a.cfg.GRPCAddr, err)
 	}
 
 	fmt.Println("Starting gRPC server on", lis.Addr().String())
 
-	errChan := make(chan error, 1)
+	go func() {
+		<-ctx.Done()
+		a.shutdownGRPC()
+	}()
+
+	if err := a.grpcServer.Serve(lis); err != nil {
+		return fmt.Errorf("grpc server failed: %w", err)
+	}
+
+	return nil
+}
+
+func (a *App) shutdownGRPC() {
+	done := make(chan struct{})
 
 	go func() {
-		fmt.Println("gRPC server is running...")
-		if err := grpcSrv.Serve(lis); err != nil {
-			errChan <- err
-		}
+		a.grpcServer.GracefulStop()
+		close(done)
 	}()
 
 	select {
-	case <-ctx.Done():
-		fmt.Println("Stopping gRPC server")
-		grpcSrv.GracefulStop()
-		return nil
-	case err := <-errChan:
-		return err
+	case <-done:
+	case <-time.After(shutdownTimeout):
+		a.grpcServer.Stop()
 	}
 }
