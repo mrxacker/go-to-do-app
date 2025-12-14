@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mrxacker/go-to-do-app/internal/config"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -21,13 +22,19 @@ type App struct {
 	httpServer *http.Server
 	grpcServer *grpc.Server
 
-	wg sync.WaitGroup
+	logger *zap.Logger
+	wg     sync.WaitGroup
 }
 
 func NewApp() (*App, error) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
 	grpcSrv := grpc.NewServer()
@@ -40,11 +47,15 @@ func NewApp() (*App, error) {
 		cfg:        cfg,
 		httpServer: httpSrv,
 		grpcServer: grpcSrv,
+		logger:     logger,
 	}, nil
 }
 
 func (a *App) Start(ctx context.Context) error {
-	fmt.Println("Starting application...")
+	a.logger.Info("Starting application",
+		zap.String("http_addr", a.cfg.HTTPAddr),
+		zap.String("grpc_addr", a.cfg.GRPCAddr),
+	)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -68,6 +79,7 @@ func (a *App) Start(ctx context.Context) error {
 		return a.shutdown()
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, context.Canceled) {
+			a.logger.Error("application shutdown", zap.Error(err))
 			cancel()
 			_ = a.shutdown()
 			return err
@@ -78,7 +90,7 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) shutdown() error {
-	fmt.Println("Stopping application...")
+	a.logger.Info("Shutting down application")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
@@ -105,10 +117,11 @@ func (a *App) runHTTP(ctx context.Context) error {
 		return errors.New("http address is empty")
 	}
 
-	fmt.Println("Starting HTTP server on", a.httpServer.Addr)
+	a.logger.Info("Starting HTTP server", zap.String("http_addr", a.httpServer.Addr))
 
 	go func() {
 		<-ctx.Done()
+		a.logger.Info("Shutting down HTTP server", zap.String("http_addr", a.httpServer.Addr))
 		_ = a.shutdownHTTP()
 	}()
 
@@ -116,7 +129,8 @@ func (a *App) runHTTP(ctx context.Context) error {
 		if errors.Is(err, http.ErrServerClosed) {
 			return context.Canceled
 		}
-		return fmt.Errorf("http server failed: %w", err)
+		a.logger.Error("application shutdown", zap.Error(err))
+		return err
 	}
 
 	return nil
@@ -132,18 +146,21 @@ func (a *App) shutdownHTTP() error {
 func (a *App) runGRPC(ctx context.Context) error {
 	lis, err := net.Listen("tcp", ":"+a.cfg.GRPCAddr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %w", a.cfg.GRPCAddr, err)
+		a.logger.Error("application shutdown", zap.Error(err))
+		return err
 	}
 
-	fmt.Println("Starting gRPC server on", lis.Addr().String())
+	a.logger.Info("Starting gRPC server", zap.String("grpc_addr", a.cfg.GRPCAddr))
 
 	go func() {
 		<-ctx.Done()
+		a.logger.Info("Shutting down gRPC server", zap.String("grpc_addr", a.cfg.GRPCAddr))
 		a.shutdownGRPC()
 	}()
 
 	if err := a.grpcServer.Serve(lis); err != nil {
-		return fmt.Errorf("grpc server failed: %w", err)
+		a.logger.Error("application shutdown", zap.Error(err))
+		return err
 	}
 
 	return nil
