@@ -33,7 +33,7 @@ func NewApp() (*App, error) {
 	grpcSrv := grpc.NewServer()
 
 	httpSrv := &http.Server{
-		Addr: cfg.HTTPAddr,
+		Addr: ":" + cfg.HTTPAddr,
 	}
 
 	return &App{
@@ -130,7 +130,7 @@ func (a *App) shutdownHTTP() error {
 }
 
 func (a *App) runGRPC(ctx context.Context) error {
-	lis, err := net.Listen("tcp", a.cfg.GRPCAddr)
+	lis, err := net.Listen("tcp", ":"+a.cfg.GRPCAddr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", a.cfg.GRPCAddr, err)
 	}
