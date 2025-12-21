@@ -1,5 +1,7 @@
 package repository
 
+import "context"
+
 type TodoRepository interface {
-	CreateTodo(title, description string) error
+	CreateTodo(ctx context.Context, title, description string) error
 }

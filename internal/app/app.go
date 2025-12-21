@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	internal_http "github.com/mrxacker/go-to-do-app/internal/adapters/http"
 	"github.com/mrxacker/go-to-do-app/internal/config"
 	"github.com/mrxacker/go-to-do-app/internal/infrastructure/postgres"
 	"github.com/mrxacker/go-to-do-app/internal/logger"
@@ -58,9 +60,12 @@ func NewApp() (*App, error) {
 	todoRepo := postgres.NewTodoRepo(db)
 	todoUC := usecase.NewTodoUsecase(todoRepo)
 
+	// Initialize HTTP handlers
+	httpRouter := initHandlers(todoUC)
+
 	// Initialize servers
 	grpcSrv := grpc.NewServer()
-	httpSrv := &http.Server{Addr: ":" + cfg.HTTPAddr}
+	httpSrv := &http.Server{Addr: ":" + cfg.HTTPAddr, Handler: httpRouter}
 
 	// Return the application instance
 	return &App{
@@ -69,6 +74,7 @@ func NewApp() (*App, error) {
 		httpServer: httpSrv,
 		grpcServer: grpcSrv,
 		logger:     l.Logger,
+		db:         db,
 	}, nil
 }
 
@@ -200,4 +206,13 @@ func (a *App) shutdownGRPC() {
 	case <-time.After(shutdownTimeout):
 		a.grpcServer.Stop()
 	}
+}
+
+func initHandlers(uc *usecase.TodoUsecase) *gin.Engine {
+	todoHandler := internal_http.NewTodoHandler(uc)
+	r := gin.Default()
+	api := r.Group("/api/v1")
+	todoHandler.RegisterRoutes(api.Group("/todos"))
+
+	return r
 }
