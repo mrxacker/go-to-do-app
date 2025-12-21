@@ -3,6 +3,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+
+	"github.com/mrxacker/go-to-do-app/internal/dto"
+	e "github.com/mrxacker/go-to-do-app/internal/errors"
+	"github.com/mrxacker/go-to-do-app/internal/models"
 )
 
 type TodoRepo struct {
@@ -13,9 +18,54 @@ func NewTodoRepo(db *sql.DB) *TodoRepo {
 	return &TodoRepo{db: db}
 }
 
-func (r *TodoRepo) CreateTodo(ctx context.Context, title, description string) error {
-	_, err := r.db.ExecContext(ctx, "INSERT INTO todos (title, description) VALUES ($1, $2)", title, description)
-	return err
+func (r *TodoRepo) CreateTodo(ctx context.Context, todo dto.CreateTodoRequest) (models.ToDoID, error) {
+	var id models.ToDoID
+	err := r.db.QueryRowContext(ctx,
+		"INSERT INTO to_do (title, description) VALUES ($1, $2) RETURNING id",
+		todo.Title, todo.Description).Scan(&id)
+	return id, err
 }
 
-func (r *TodoRepo) ListTodos() error {
+func (r *TodoRepo) GetTodoByID(ctx context.Context, id models.ToDoID) (models.ToDo, error) {
+	var todo models.ToDo
+	err := r.db.QueryRowContext(ctx,
+		"SELECT id, title, description, created_at, updated_at FROM to_do WHERE id = $1",
+		id).Scan(&todo.ID, &todo.Title, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.ToDo{}, e.ErrTodoNotFound
+		}
+		return models.ToDo{}, err
+	}
+	return todo, nil
+}
+
+func (r *TodoRepo) ListTodos(ctx context.Context, limit, offset int) ([]models.ToDo, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	rows, err := r.db.QueryContext(ctx, "SELECT id, title, description FROM to_do LIMIT $1 OFFSET $2", limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	todos := make([]models.ToDo, 0)
+	for rows.Next() {
+		var todo models.ToDo
+		if err := rows.Scan(&todo.ID, &todo.Title, &todo.Description); err != nil {
+			return nil, err
+		}
+		todos = append(todos, todo)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return todos, nil
+}

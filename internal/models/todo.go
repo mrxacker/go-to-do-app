@@ -1,9 +1,13 @@
 package models
 
+import "time"
+
+type ToDoID int64
+
 type ToDo struct {
-	ID          int64  `db:"id"`
-	Title       string `db:"title"`
-	Description string `db:"description"`
-	CreatedAt   string `db:"created_at"`
-	UpdatedAt   string `db:"updated_at"`
+	ID          ToDoID    `db:"id"`
+	Title       string    `db:"title"`
+	Description string    `db:"description"`
+	CreatedAt   time.Time `db:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at"`
 }

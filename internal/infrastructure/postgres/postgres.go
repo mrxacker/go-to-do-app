@@ -15,5 +15,7 @@ func NewPostgresDB(dsn string) (*sql.DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
+
+	db.Exec("SET timezone = 'Asia/Ashgabat'")
 	return db, nil
 }

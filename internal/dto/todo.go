@@ -1,12 +1,23 @@
 package dto
 
+import "github.com/mrxacker/go-to-do-app/internal/models"
+
 type CreateTodoRequest struct {
 	Title       string `json:"title" binding:"required"`
 	Description string `json:"description" binding:"required"`
 }
 
 type CreateTodoResponse struct {
-	ID int64 `json:"id"`
+	ID models.ToDoID `json:"id"`
+}
+
+type GetTodoByIDRequest struct {
+	ID models.ToDoID `uri:"id" binding:"required"`
+}
+
+type GetListTodosRequest struct {
+	Limit  int `form:"limit"`
+	Offset int `form:"offset"`
 }
 
 type ListTodosResponse struct {
@@ -14,9 +25,7 @@ type ListTodosResponse struct {
 }
 
 type TodoItem struct {
-	ID          int64  `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	ID          models.ToDoID `json:"id"`
+	Title       string        `json:"title"`
+	Description string        `json:"description"`
 }
