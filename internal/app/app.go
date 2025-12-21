@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	"github.com/mrxacker/go-to-do-app/internal/config"
+	"github.com/mrxacker/go-to-do-app/internal/infrastructure/postgres"
 	"github.com/mrxacker/go-to-do-app/internal/logger"
+	"github.com/mrxacker/go-to-do-app/internal/usecase"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -18,34 +21,51 @@ import (
 const shutdownTimeout = 5 * time.Second
 
 type App struct {
-	cfg *config.Config
+	cfg    *config.Config
+	logger *zap.Logger
+
+	todoUC *usecase.TodoUsecase
 
 	httpServer *http.Server
 	grpcServer *grpc.Server
+	db         *sql.DB
 
-	logger *zap.Logger
-	wg     sync.WaitGroup
+	wg sync.WaitGroup
 }
 
 func NewApp() (*App, error) {
+	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Initialize logger
 	l, err := logger.NewLogger(cfg.ENV)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	grpcSrv := grpc.NewServer()
-
-	httpSrv := &http.Server{
-		Addr: ":" + cfg.HTTPAddr,
+	// Initialize database connection
+	db, err := postgres.NewPostgresDB(fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName,
+	))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Initialize repositories and use cases
+	todoRepo := postgres.NewTodoRepo(db)
+	todoUC := usecase.NewTodoUsecase(todoRepo)
+
+	// Initialize servers
+	grpcSrv := grpc.NewServer()
+	httpSrv := &http.Server{Addr: ":" + cfg.HTTPAddr}
+
+	// Return the application instance
 	return &App{
 		cfg:        cfg,
+		todoUC:     todoUC,
 		httpServer: httpSrv,
 		grpcServer: grpcSrv,
 		logger:     l.Logger,

@@ -12,6 +12,12 @@ type Config struct {
 	ENV      string
 	HTTPAddr string
 	GRPCAddr string
+
+	DBHost     string
+	DBPort     int
+	DBUser     string
+	DBPassword string
+	DBName     string
 }
 
 func LoadConfig() (*Config, error) {
@@ -20,9 +26,14 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		ENV:      getEnv("ENV", "dev"),
-		HTTPAddr: getEnv("HTTPPort", "8080"),
-		GRPCAddr: getEnv("GRPCPort", "9091"),
+		ENV:        getEnv("ENV", "dev"),
+		HTTPAddr:   getEnv("HTTPPort", "8080"),
+		GRPCAddr:   getEnv("GRPCPort", "9091"),
+		DBHost:     getEnv("DB_HOST", "localhost"),
+		DBPort:     getEnvInt("DB_PORT", 5432),
+		DBUser:     getEnv("DB_USER", "postgres"),
+		DBPassword: getEnv("DB_PASSWORD", "password"),
+		DBName:     getEnv("DB_NAME", "todoapp"),
 	}
 
 	return cfg, nil
