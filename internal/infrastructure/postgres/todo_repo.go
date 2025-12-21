@@ -17,3 +17,5 @@ func (r *TodoRepo) CreateTodo(ctx context.Context, title, description string) er
 	_, err := r.db.ExecContext(ctx, "INSERT INTO todos (title, description) VALUES ($1, $2)", title, description)
 	return err
 }
+
+func (r *TodoRepo) ListTodos() error {
