@@ -3,6 +3,13 @@ BIN_DIR := bin
 COMPOSE_FILE=docker-compose.yml
 ENV_FILE=.env
 
+ifneq (,$(wildcard .env))
+	include .env
+	export
+endif
+
+DB_URL := postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
+
 .PHONY: run build test clean proto
 
 proto:
@@ -27,3 +34,9 @@ up:
 
 down:
 	docker compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE) down -v
+
+migrate-up:
+	migrate -path migrations -database "$(DB_URL)" up
+
+migrate-down:
+	migrate -path migrations -database "$(DB_URL)" down 1
