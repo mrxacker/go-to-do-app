@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	ENV      string
 	HTTPAddr string
 	GRPCAddr string
 }
@@ -19,6 +20,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
+		ENV:      getEnv("ENV", "dev"),
 		HTTPAddr: getEnv("HTTPPort", "8080"),
 		GRPCAddr: getEnv("GRPCPort", "9091"),
 	}

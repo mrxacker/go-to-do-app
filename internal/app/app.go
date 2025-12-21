@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mrxacker/go-to-do-app/internal/config"
+	"github.com/mrxacker/go-to-do-app/internal/logger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -32,7 +33,7 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	logger, err := zap.NewDevelopment()
+	l, err := logger.NewLogger(cfg.ENV)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
@@ -47,7 +48,7 @@ func NewApp() (*App, error) {
 		cfg:        cfg,
 		httpServer: httpSrv,
 		grpcServer: grpcSrv,
-		logger:     logger,
+		logger:     l.Logger,
 	}, nil
 }
 
