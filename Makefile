@@ -36,7 +36,7 @@ down:
 	docker compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE) down -v
 
 migrate-up:
-	migrate -path migrations -database "$(DB_URL)" up
+	migrate -path migrations -database "$(DB_URL)"  up
 
 migrate-down:
 	migrate -path migrations -database "$(DB_URL)" down 1
