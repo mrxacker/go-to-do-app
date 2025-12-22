@@ -48,7 +48,7 @@ func (r *TodoRepo) ListTodos(ctx context.Context, limit, offset int) ([]models.T
 		offset = 0
 	}
 
-	rows, err := r.db.QueryContext(ctx, "SELECT id, title, description FROM to_do LIMIT $1 OFFSET $2", limit, offset)
+	rows, err := r.db.QueryContext(ctx, "SELECT id, title, description FROM to_do ORDER BY id LIMIT $1 OFFSET $2", limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -68,4 +68,42 @@ func (r *TodoRepo) ListTodos(ctx context.Context, limit, offset int) ([]models.T
 	}
 
 	return todos, nil
+}
+
+func (r *TodoRepo) DeleteTodoByID(ctx context.Context, id models.ToDoID) error {
+	result, err := r.db.ExecContext(ctx, "DELETE FROM to_do WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return e.ErrTodoNotFound
+	}
+
+	return nil
+}
+
+func (r *TodoRepo) UpdateTodo(ctx context.Context, todo models.ToDo) error {
+	result, err := r.db.ExecContext(ctx,
+		"UPDATE to_do SET title = $1, description = $2, updated_at = NOW() WHERE id = $3",
+		todo.Title, todo.Description, todo.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return e.ErrTodoNotFound
+	}
+
+	return nil
 }

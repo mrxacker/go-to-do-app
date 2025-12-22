@@ -7,6 +7,10 @@ type CreateTodoRequest struct {
 	Description string `json:"description" binding:"required"`
 }
 
+type UpdateTodoURI struct {
+	ID models.ToDoID `uri:"id" binding:"required"`
+}
+
 type CreateTodoResponse struct {
 	ID models.ToDoID `json:"id"`
 }

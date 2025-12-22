@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mrxacker/go-to-do-app/internal/dto"
 	e "github.com/mrxacker/go-to-do-app/internal/errors"
+	"github.com/mrxacker/go-to-do-app/internal/models"
 	"github.com/mrxacker/go-to-do-app/internal/usecase"
 )
 
@@ -22,18 +23,20 @@ func (h *TodoHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/", h.CreateTodo)
 	rg.GET("/", h.ListTodos)
 	rg.GET("/:id", h.GetTodoByID)
+	rg.DELETE("/:id", h.DeleteTodoByID)
+	rg.PUT("/:id", h.UpdateTodo)
 }
 
 func (h *TodoHandler) CreateTodo(c *gin.Context) {
 	var req dto.CreateTodoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
 	id, err := h.uc.CreateTodo(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create todo"})
 		return
 	}
 
@@ -46,7 +49,7 @@ func (h *TodoHandler) CreateTodo(c *gin.Context) {
 func (h *TodoHandler) GetTodoByID(c *gin.Context) {
 	var req dto.GetTodoByIDRequest
 	if err := c.ShouldBindUri(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid todo ID"})
 		return
 	}
 
@@ -57,7 +60,7 @@ func (h *TodoHandler) GetTodoByID(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get todo"})
 		return
 	}
 
@@ -73,13 +76,13 @@ func (h *TodoHandler) GetTodoByID(c *gin.Context) {
 func (h *TodoHandler) ListTodos(c *gin.Context) {
 	var req dto.GetListTodosRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
 		return
 	}
 
 	todos, err := h.uc.ListTodos(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list todos"})
 		return
 	}
 
@@ -93,4 +96,56 @@ func (h *TodoHandler) ListTodos(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, res)
+}
+
+func (h *TodoHandler) DeleteTodoByID(c *gin.Context) {
+	var req dto.GetTodoByIDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid todo ID"})
+		return
+	}
+
+	err := h.uc.DeleteTodoByID(c.Request.Context(), req.ID)
+	if err != nil {
+		if errors.Is(err, e.ErrTodoNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete todo"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *TodoHandler) UpdateTodo(c *gin.Context) {
+	var uri dto.UpdateTodoURI
+	if err := c.ShouldBindUri(&uri); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid todo ID"})
+		return
+	}
+
+	var req dto.CreateTodoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	err := h.uc.UpdateTodo(c.Request.Context(), models.ToDo{
+		ID:          uri.ID,
+		Title:       req.Title,
+		Description: req.Description,
+	})
+	if err != nil {
+		if errors.Is(err, e.ErrTodoNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "todo not found"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update todo"})
+		return
+	}
+
+	c.Status(http.StatusOK)
 }

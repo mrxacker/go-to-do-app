@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/mrxacker/go-to-do-app/internal/dto"
+	e "github.com/mrxacker/go-to-do-app/internal/errors"
 	"github.com/mrxacker/go-to-do-app/internal/models"
 	"github.com/mrxacker/go-to-do-app/internal/ports/repository"
 )
@@ -41,4 +42,34 @@ func (u *TodoUsecase) GetTodoByID(ctx context.Context, id models.ToDoID) (models
 
 func (u *TodoUsecase) ListTodos(ctx context.Context, req dto.GetListTodosRequest) ([]models.ToDo, error) {
 	return u.repo.ListTodos(ctx, req.Limit, req.Offset)
+}
+
+func (u *TodoUsecase) DeleteTodoByID(ctx context.Context, id models.ToDoID) error {
+	todo, err := u.repo.GetTodoByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if todo.ID == 0 {
+		return e.ErrTodoNotFound
+	}
+
+	return u.repo.DeleteTodoByID(ctx, id)
+}
+
+func (u *TodoUsecase) UpdateTodo(ctx context.Context, req models.ToDo) error {
+	todo, err := u.repo.GetTodoByID(ctx, req.ID)
+	if err != nil {
+		return err
+	}
+
+	if todo.ID == 0 {
+		return e.ErrTodoNotFound
+	}
+
+	return u.repo.UpdateTodo(ctx, models.ToDo{
+		ID:          req.ID,
+		Title:       req.Title,
+		Description: req.Description,
+	})
 }
