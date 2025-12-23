@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/mrxacker/go-to-do-app/internal/dto"
 	e "github.com/mrxacker/go-to-do-app/internal/errors"
 	"github.com/mrxacker/go-to-do-app/internal/models"
 )
@@ -18,11 +17,11 @@ func NewTodoRepo(db *sql.DB) *TodoRepo {
 	return &TodoRepo{db: db}
 }
 
-func (r *TodoRepo) CreateTodo(ctx context.Context, todo dto.CreateTodoRequest) (models.ToDoID, error) {
+func (r *TodoRepo) CreateTodo(ctx context.Context, todo models.ToDo) (models.ToDoID, error) {
 	var id models.ToDoID
 	err := r.db.QueryRowContext(ctx,
-		"INSERT INTO to_do (title, description) VALUES ($1, $2) RETURNING id",
-		todo.Title, todo.Description).Scan(&id)
+		"INSERT INTO to_do (user_id, title, description) VALUES ($1, $2, $3) RETURNING id",
+		todo.UserID, todo.Title, todo.Description).Scan(&id)
 	return id, err
 }
 
@@ -40,7 +39,7 @@ func (r *TodoRepo) GetTodoByID(ctx context.Context, id models.ToDoID) (models.To
 	return todo, nil
 }
 
-func (r *TodoRepo) ListTodos(ctx context.Context, limit, offset int) ([]models.ToDo, error) {
+func (r *TodoRepo) ListTodos(ctx context.Context, userID models.UserID, limit, offset int) ([]models.ToDo, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -48,7 +47,7 @@ func (r *TodoRepo) ListTodos(ctx context.Context, limit, offset int) ([]models.T
 		offset = 0
 	}
 
-	rows, err := r.db.QueryContext(ctx, "SELECT id, title, description FROM to_do ORDER BY id LIMIT $1 OFFSET $2", limit, offset)
+	rows, err := r.db.QueryContext(ctx, "SELECT id, title, description FROM to_do WHERE user_id = $1 ORDER BY id LIMIT $2 OFFSET $3", userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

@@ -28,7 +28,13 @@ func (u *TodoUsecase) CreateTodo(ctx context.Context, req dto.CreateTodoRequest)
 		return 0, errors.New("title is too long")
 	}
 
-	return u.repo.CreateTodo(ctx, req)
+	todo := models.ToDo{
+		UserID:      req.UserID,
+		Title:       req.Title,
+		Description: req.Description,
+	}
+
+	return u.repo.CreateTodo(ctx, todo)
 }
 
 func (u *TodoUsecase) GetTodoByID(ctx context.Context, id models.ToDoID) (models.ToDo, error) {
@@ -41,7 +47,7 @@ func (u *TodoUsecase) GetTodoByID(ctx context.Context, id models.ToDoID) (models
 }
 
 func (u *TodoUsecase) ListTodos(ctx context.Context, req dto.GetListTodosRequest) ([]models.ToDo, error) {
-	return u.repo.ListTodos(ctx, req.Limit, req.Offset)
+	return u.repo.ListTodos(ctx, req.UserID, req.Limit, req.Offset)
 }
 
 func (u *TodoUsecase) DeleteTodoByID(ctx context.Context, id models.ToDoID) error {

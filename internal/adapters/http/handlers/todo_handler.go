@@ -29,6 +29,16 @@ func (h *TodoHandler) RegisterRoutes(rg *gin.RouterGroup) {
 
 func (h *TodoHandler) CreateTodo(c *gin.Context) {
 	var req dto.CreateTodoRequest
+	var userID models.UserID
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID = userIDValue.(models.UserID)
+
+	req.UserID = userID
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
@@ -36,7 +46,7 @@ func (h *TodoHandler) CreateTodo(c *gin.Context) {
 
 	id, err := h.uc.CreateTodo(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create todo"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -75,6 +85,16 @@ func (h *TodoHandler) GetTodoByID(c *gin.Context) {
 
 func (h *TodoHandler) ListTodos(c *gin.Context) {
 	var req dto.GetListTodosRequest
+	var userID models.UserID
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID = userIDValue.(models.UserID)
+
+	req.UserID = userID
+
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
 		return

@@ -3,8 +3,9 @@ package dto
 import "github.com/mrxacker/go-to-do-app/internal/models"
 
 type CreateTodoRequest struct {
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description" binding:"required"`
+	UserID      models.UserID `json:"user_id" binding:"required"`
+	Title       string        `json:"title" binding:"required"`
+	Description string        `json:"description" binding:"required"`
 }
 
 type UpdateTodoURI struct {
@@ -20,8 +21,9 @@ type GetTodoByIDRequest struct {
 }
 
 type GetListTodosRequest struct {
-	Limit  int `form:"limit"`
-	Offset int `form:"offset"`
+	UserID models.UserID `form:"user_id" binding:"required"`
+	Limit  int           `form:"limit"`
+	Offset int           `form:"offset"`
 }
 
 type ListTodosResponse struct {
