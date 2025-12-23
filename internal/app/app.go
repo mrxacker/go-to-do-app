@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	internal_http "github.com/mrxacker/go-to-do-app/internal/adapters/http"
+	internal_http "github.com/mrxacker/go-to-do-app/internal/adapters/http/handlers"
+	"github.com/mrxacker/go-to-do-app/internal/adapters/http/middleware"
 	"github.com/mrxacker/go-to-do-app/internal/config"
+	"github.com/mrxacker/go-to-do-app/internal/infrastructure/auth"
 	"github.com/mrxacker/go-to-do-app/internal/infrastructure/postgres"
 	"github.com/mrxacker/go-to-do-app/internal/logger"
 	"github.com/mrxacker/go-to-do-app/internal/usecase"
@@ -56,14 +58,17 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Initialize JWT service
+	jwtService := auth.NewJWTService(cfg.JWTSecret, time.Hour*24)
+
 	// Initialize repositories and use cases
 	todoRepo := postgres.NewTodoRepo(db)
 	todoUC := usecase.NewTodoUsecase(todoRepo)
 	userRepo := postgres.NewUserRepo(db)
-	userUC := usecase.NewUserUseCase(userRepo)
+	userUC := usecase.NewUserUseCase(userRepo, jwtService)
 
 	// Initialize HTTP handlers
-	httpRouter := initHandlers(todoUC, userUC)
+	httpRouter := initHandlers(todoUC, userUC, jwtService)
 
 	// Initialize servers
 	grpcSrv := grpc.NewServer()
@@ -210,11 +215,12 @@ func (a *App) shutdownGRPC() {
 	}
 }
 
-func initHandlers(todoUC *usecase.TodoUsecase, userUC *usecase.UserUseCase) *gin.Engine {
+func initHandlers(todoUC *usecase.TodoUsecase, userUC *usecase.UserUseCase, jwtService *auth.JWTService) *gin.Engine {
 	todoHandler := internal_http.NewTodoHandler(todoUC)
 	userHandler := internal_http.NewUserHandler(userUC)
 	r := gin.Default()
 	api := r.Group("/api/v1")
+	api.Use(middleware.JWTMiddleware(jwtService))
 	todoHandler.RegisterRoutes(api.Group("/todos"))
 	userHandler.RegisterRoutes(api.Group("/users"))
 	return r

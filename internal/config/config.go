@@ -18,6 +18,8 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+
+	JWTSecret string
 }
 
 func LoadConfig() (*Config, error) {
@@ -34,6 +36,7 @@ func LoadConfig() (*Config, error) {
 		DBUser:     getEnv("DB_USER", "postgres"),
 		DBPassword: getEnv("DB_PASSWORD", "password"),
 		DBName:     getEnv("DB_NAME", "todoapp"),
+		JWTSecret:  getEnv("JWT_SECRET", ""),
 	}
 
 	return cfg, nil
