@@ -59,9 +59,11 @@ func NewApp() (*App, error) {
 	// Initialize repositories and use cases
 	todoRepo := postgres.NewTodoRepo(db)
 	todoUC := usecase.NewTodoUsecase(todoRepo)
+	userRepo := postgres.NewUserRepo(db)
+	userUC := usecase.NewUserUseCase(userRepo)
 
 	// Initialize HTTP handlers
-	httpRouter := initHandlers(todoUC)
+	httpRouter := initHandlers(todoUC, userUC)
 
 	// Initialize servers
 	grpcSrv := grpc.NewServer()
@@ -208,11 +210,12 @@ func (a *App) shutdownGRPC() {
 	}
 }
 
-func initHandlers(uc *usecase.TodoUsecase) *gin.Engine {
-	todoHandler := internal_http.NewTodoHandler(uc)
+func initHandlers(todoUC *usecase.TodoUsecase, userUC *usecase.UserUseCase) *gin.Engine {
+	todoHandler := internal_http.NewTodoHandler(todoUC)
+	userHandler := internal_http.NewUserHandler(userUC)
 	r := gin.Default()
 	api := r.Group("/api/v1")
 	todoHandler.RegisterRoutes(api.Group("/todos"))
-
+	userHandler.RegisterRoutes(api.Group("/users"))
 	return r
 }

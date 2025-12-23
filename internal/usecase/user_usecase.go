@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	e "github.com/mrxacker/go-to-do-app/internal/errors"
 	"github.com/mrxacker/go-to-do-app/internal/models"
@@ -17,24 +18,24 @@ func NewUserUseCase(r repository.UserRepository) *UserUseCase {
 }
 
 func (u *UserUseCase) CreateUser(ctx context.Context, user models.User) (models.UserID, error) {
-	user, err := u.userRepo.GetUserByEmail(ctx, user.Email)
-	if err != nil {
+	// Check email uniqueness
+	_, err := u.userRepo.GetUserByEmail(ctx, user.Email)
+	if err == nil {
+		return 0, e.ErrUserAlreadyExists
+	}
+	if !errors.Is(err, e.ErrUserNotFound) {
 		return 0, err
 	}
 
-	if user != (models.User{}) {
+	// Check username uniqueness
+	_, err = u.userRepo.GetUserByUsername(ctx, user.Username)
+	if err == nil {
 		return 0, e.ErrUserAlreadyExists
 	}
-	user, err := u.userRepo.GetUserByEmail(ctx, user.Email)
-	if err != nil {
+	if !errors.Is(err, e.ErrUserNotFound) {
 		return 0, err
 	}
 
-	if user != (models.User{}) {
-		return 0, e.ErrUserAlreadyExists
-	}
-
-
-
+	// Create user
 	return u.userRepo.CreateUser(ctx, user)
 }
